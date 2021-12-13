@@ -52,7 +52,7 @@ public class Redbit {
     }
 
     public static void stop() throws InterruptedException {
-//        instance.synchronizationTimer.interrupt();
+        instance.synchronizationTimer.interrupt();
         instance.synchronizationTimer.join();
     }
 
