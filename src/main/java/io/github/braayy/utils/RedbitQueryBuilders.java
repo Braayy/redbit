@@ -16,6 +16,7 @@ public class RedbitQueryBuilders {
             first = false;
         }
         builder.append(") VALUES (");
+
         first = true;
         for (RedbitColumnInfo columnInfo : structInfo.getAllColumns()) {
             String value = valueMap.get(columnInfo.getName());
@@ -27,6 +28,7 @@ public class RedbitQueryBuilders {
             first = false;
         }
         builder.append(") ON DUPLICATE KEY UPDATE ");
+
         first = true;
         for (RedbitColumnInfo columnInfo : structInfo.getColumns()) {
             String value = valueMap.get(columnInfo.getName());
@@ -37,6 +39,7 @@ public class RedbitQueryBuilders {
 
             first = false;
         }
+
         return builder.toString();
     }
 
@@ -44,7 +47,7 @@ public class RedbitQueryBuilders {
         StringBuilder builder = new StringBuilder("DELETE FROM `").append(structInfo.getName()).append("` WHERE ");
         RedbitColumnInfo idColumn = structInfo.getIdColumn();
 
-        builder.append('`').append(idColumn.getName()).append("`='").append(idValue).append('\'');
+        builder.append('`').append(idColumn.getName()).append("`='").append(RedbitUtils.escapeToSql(idValue)).append('\'');
 
         return builder.toString();
     }
