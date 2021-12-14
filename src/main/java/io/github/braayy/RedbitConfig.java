@@ -6,11 +6,12 @@ public class RedbitConfig {
     private int redisPort, mysqlPort;
     private boolean debug;
     private long syncDelay;
+    private int parallelTasks;
 
     public RedbitConfig() {
     }
 
-    public RedbitConfig(String redisHost, String mysqlHost, String mysqlDatabase, String mysqlUser, String mysqlPassword, int redisPort, int mysqlPort, boolean debug, long syncDelay) {
+    public RedbitConfig(String redisHost, String mysqlHost, String mysqlDatabase, String mysqlUser, String mysqlPassword, int redisPort, int mysqlPort, boolean debug, long syncDelay, int parallelTasks) {
         this.redisHost = redisHost;
         this.mysqlHost = mysqlHost;
         this.mysqlDatabase = mysqlDatabase;
@@ -20,6 +21,7 @@ public class RedbitConfig {
         this.mysqlPort = mysqlPort;
         this.debug = debug;
         this.syncDelay = syncDelay;
+        this.parallelTasks = parallelTasks;
     }
 
     public String getRedisHost() {
@@ -92,5 +94,13 @@ public class RedbitConfig {
 
     public void setSyncDelay(long syncDelay) {
         this.syncDelay = syncDelay;
+    }
+
+    public int getParallelTasks() {
+        return parallelTasks;
+    }
+
+    public void setParallelTasks(int parallelTasks) {
+        this.parallelTasks = parallelTasks;
     }
 }

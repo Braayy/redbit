@@ -27,15 +27,19 @@ public class Redbit {
     private Redbit() {}
 
     private final RedbitStructRegistry structRegistry = new RedbitStructRegistry();
-    private final RedbitSynchronizationTimer synchronizationTimer = new RedbitSynchronizationTimer();
-    private final RedbitSynchronizer synchronizer = new RedbitSynchronizer();
     private final Logger logger = Logger.getLogger("Redbit Logger");
+    private RedbitSynchronizationTimer synchronizationTimer;
+    private RedbitSynchronizer synchronizer;
     private Jedis jedis;
     private HikariDataSource dataSource;
     private RedbitConfig config;
 
     public static void init(RedbitConfig config) {
         instance.config = config;
+
+        instance.synchronizationTimer = new RedbitSynchronizationTimer();
+        instance.synchronizer = new RedbitSynchronizer();
+
         instance.jedis = new Jedis(config.getRedisHost(), config.getRedisPort());
 
         instance.dataSource = new HikariDataSource();

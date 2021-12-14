@@ -1,5 +1,6 @@
 package io.github.braayy.synchronization;
 
+import io.github.braayy.Redbit;
 import io.github.braayy.synchronization.RedbitSynchronizationEntry.Operation;
 import io.github.braayy.struct.RedbitStructInfo;
 
@@ -12,19 +13,21 @@ public class RedbitSynchronizer {
 
     private final List<RedbitSynchronizationEntry> modifiedEntries = new ArrayList<>();
 
-    private final Queue<RedbitSynchronizationEntry> remainingKeys = new ArrayDeque<>();
-    private final ExecutorService executorService = Executors.newFixedThreadPool(5);
+    private final Queue<RedbitSynchronizationEntry> remainingEntries = new ArrayDeque<>();
+    private final ExecutorService executorService = Executors.newFixedThreadPool(Redbit.getConfig().getParallelTasks());
 
     private boolean completed = true;
 
     public void synchronize() {
         if (modifiedEntries.size() == 0 || !completed) return;
 
-        remainingKeys.clear();
-        remainingKeys.addAll(modifiedEntries);
+        remainingEntries.clear();
+        remainingEntries.addAll(modifiedEntries);
+        completed = false;
+
         modifiedEntries.clear();
 
-        nextKey();
+        nextKeys();
     }
 
     public void addModifiedKey(RedbitStructInfo structInfo, String idValue, Operation operation) {
@@ -32,17 +35,26 @@ public class RedbitSynchronizer {
         this.modifiedEntries.add(new RedbitSynchronizationEntry(structInfo, idValue, operation));
     }
 
-    private void nextKey() {
-        RedbitSynchronizationEntry currentEntry = remainingKeys.poll();
+    @SuppressWarnings("rawtypes")
+    private void nextKeys() {
+        int parallelTasks = Math.min(Redbit.getConfig().getParallelTasks(), remainingEntries.size());
 
-        if (currentEntry == null) {
+        if (parallelTasks <= 0) {
             completed = true;
             return;
         }
 
+        CompletableFuture[] tasks = new CompletableFuture[parallelTasks];
+        for (int i = 0; i < parallelTasks; i++) {
+            RedbitSynchronizationEntry currentEntry = remainingEntries.poll();
+
+            tasks[i] = CompletableFuture
+                    .runAsync(new RedbitSynchronizationTask(currentEntry), executorService);
+        }
+
         CompletableFuture
-                .runAsync(new RedbitSynchronizationTask(currentEntry), executorService)
-                .thenRun(this::nextKey);
+                .allOf(tasks)
+                .thenRun(this::nextKeys);
     }
 
 }
