@@ -70,4 +70,10 @@ public class RedbitQueryBuilders {
         return builder.toString();
     }
 
+    public static String buildSelectQuery(RedbitStructInfo structInfo, String idValue) {
+        RedbitColumnInfo idColumn = structInfo.getIdColumn();
+
+        return "SELECT * FROM `" + structInfo.getName() + "` WHERE `" + idColumn.getName() + "`='" + RedbitUtils.escapeToSql(idValue) + "' LIMIT 1";
+    }
+
 }

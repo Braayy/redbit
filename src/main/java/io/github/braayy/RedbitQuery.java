@@ -2,6 +2,7 @@ package io.github.braayy;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class RedbitQuery implements AutoCloseable {
@@ -12,6 +13,10 @@ public class RedbitQuery implements AutoCloseable {
     public RedbitQuery(Connection connection, PreparedStatement statement) {
         this.connection = connection;
         this.statement = statement;
+    }
+
+    public ResultSet executeQuery() throws SQLException {
+        return this.statement.executeQuery();
     }
 
     public void executeUpdate() throws SQLException {

@@ -1,23 +1,29 @@
 package io.github.braayy.struct;
 
 import io.github.braayy.Redbit;
+import io.github.braayy.RedbitQuery;
 import io.github.braayy.column.RedbitColumnInfo;
 import io.github.braayy.synchronization.RedbitSynchronizationEntry.Operation;
+import io.github.braayy.utils.RedbitQueryBuilders;
 import redis.clients.jedis.Jedis;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.*;
 import java.util.logging.Level;
 
-public class RedbitStruct implements AutoCloseable {
+public class RedbitStruct {
 
     public boolean upsert() {
-        return upsert(false);
+        return upsert(false, false);
     }
 
     public boolean upsert(boolean ignoreNullValues) {
+        return upsert(ignoreNullValues, false);
+    }
+
+    private boolean upsert(boolean ignoreNullValues, boolean fromDatabase) {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
             if (structInfo == null) {
@@ -37,7 +43,8 @@ public class RedbitStruct implements AutoCloseable {
             String key = String.format(Redbit.KEY_FORMAT, structInfo.getName(), idValue);
             jedis.hset(key, valueMap);
 
-            Redbit.getSynchronizer().addModifiedKey(structInfo, idValue, Operation.UPSERT);
+            if (!fromDatabase)
+                Redbit.getSynchronizer().addModifiedKey(structInfo, idValue, Operation.UPSERT);
 
             return true;
         } catch (Exception exception) {
@@ -54,7 +61,7 @@ public class RedbitStruct implements AutoCloseable {
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
             }
 
-            String idValue = getIdValue(structInfo);
+            Object idValue = getIdFieldValue(structInfo);
             if (idValue == null || Objects.equals(idValue, "")) {
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
             }
@@ -62,10 +69,10 @@ public class RedbitStruct implements AutoCloseable {
             Jedis jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
-            String key = String.format("%s:%s", structInfo.getName(), idValue);
+            String key = String.format(Redbit.KEY_FORMAT, structInfo.getName(), idValue);
             jedis.del(key);
 
-            Redbit.getSynchronizer().addModifiedKey(structInfo, idValue, Operation.DELETE);
+            Redbit.getSynchronizer().addModifiedKey(structInfo, idValue.toString(), Operation.DELETE);
 
             return true;
         } catch (Exception exception) {
@@ -75,14 +82,14 @@ public class RedbitStruct implements AutoCloseable {
         }
     }
 
-    public boolean get() {
+    public FetchResult fetch() {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
             if (structInfo == null) {
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
             }
 
-            String idValue = getIdValue(structInfo);
+            Object idValue = getIdFieldValue(structInfo);
             if (idValue == null || Objects.equals(idValue, "")) {
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
             }
@@ -90,50 +97,82 @@ public class RedbitStruct implements AutoCloseable {
             Jedis jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
-            String key = String.format("%s:%s", structInfo.getName(), idValue);
+            String key = String.format(Redbit.KEY_FORMAT, structInfo.getName(), idValue);
             Map<String, String> valueMap = jedis.hgetAll(key);
 
-            for (Map.Entry<String, String> entry : valueMap.entrySet()) {
-                RedbitColumnInfo columnInfo = structInfo.getColumnFromName(entry.getKey());
-                if (columnInfo == null)
-                    throw new IllegalArgumentException("Could not find column " + entry.getKey() + " in struct " + structInfo.getName());
+            if (!valueMap.isEmpty()) {
+                setFieldsValueFromRedis(structInfo, valueMap);
 
-                Field field = getClass().getDeclaredField(columnInfo.getFieldName());
-                field.setAccessible(true);
-
-                setFieldValue(field, entry.getValue());
+                return FetchResult.FOUND;
             }
 
-            return true;
-        } catch (Exception exception) {
-            Redbit.getLogger().log(Level.SEVERE, exception.getMessage(), exception);
+            String strQuery = RedbitQueryBuilders.buildSelectQuery(structInfo, idValue.toString());
+            try (RedbitQuery query = Redbit.sqlQuery(strQuery)) {
+                ResultSet set = query.executeQuery();
 
-            return false;
+                if (set.next()) {
+                    setFieldsValueFromResultSet(structInfo, set);
+                    upsert(false, true);
+
+                    return FetchResult.FOUND;
+                }
+            }
+
+            return FetchResult.NOT_FOUND;
+        } catch (Exception exception) {
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while getting struct from redis/mysql", exception);
+
+            return FetchResult.ERROR;
         }
     }
 
-    @Override
-    public void close() {
+    private void setFieldsValueFromResultSet(RedbitStructInfo structInfo, ResultSet set) throws SQLException, NoSuchFieldException, IllegalAccessException {
+        for (RedbitColumnInfo columnInfo : structInfo.getColumns()) {
+            Field field = getClass().getDeclaredField(columnInfo.getFieldName());
+            field.setAccessible(true);
 
+            Class<?> type = field.getType();
+
+            if (type.equals(Byte.class))
+                field.set(this, set.getByte(columnInfo.getName()));
+            else if (type.equals(Character.class))
+                field.set(this, set.getString(columnInfo.getName()).charAt(0));
+            else if (type.equals(Short.class))
+                field.set(this, set.getShort(columnInfo.getName()));
+            else if (type.equals(Integer.class))
+                field.set(this, set.getInt(columnInfo.getName()));
+            else if (type.equals(Long.class))
+                field.set(this, set.getLong(columnInfo.getName()));
+            else if (type.equals(String.class))
+                field.set(this, set.getString(columnInfo.getName()));
+            else
+                throw new IllegalArgumentException(type.getName() + " type is not supported by redbit");
+        }
     }
 
-    private void setFieldValue(Field field, String value) throws IllegalAccessException, IllegalArgumentException {
-        Class<?> type = field.getType();
+    private void setFieldsValueFromRedis(RedbitStructInfo structInfo, Map<String, String> valueMap) throws NoSuchFieldException, IllegalAccessException {
+        for (RedbitColumnInfo columnInfo : structInfo.getColumns()) {
+            Field field = getClass().getDeclaredField(columnInfo.getFieldName());
+            field.setAccessible(true);
 
-        if (type.equals(Byte.class))
-            field.set(this, Byte.parseByte(value));
-        else if (type.equals(Character.class))
-            field.set(this, value.charAt(0));
-        else if (type.equals(Short.class))
-            field.set(this, Short.parseShort(value));
-        else if (type.equals(Integer.class))
-            field.set(this, Integer.parseInt(value));
-        else if (type.equals(Long.class))
-            field.set(this, Long.parseLong(value));
-        else if (type.equals(String.class))
-            field.set(this, value);
-        else
-            throw new IllegalArgumentException(type.getName() + " type is not supported by redbit");
+            Class<?> type = field.getType();
+
+            String value = valueMap.get(columnInfo.getName());
+            if (type.equals(Byte.class))
+                field.set(this, Byte.parseByte(value));
+            else if (type.equals(Character.class))
+                field.set(this, value.charAt(0));
+            else if (type.equals(Short.class))
+                field.set(this, Short.parseShort(value));
+            else if (type.equals(Integer.class))
+                field.set(this, Integer.parseInt(value));
+            else if (type.equals(Long.class))
+                field.set(this, Long.parseLong(value));
+            else if (type.equals(String.class))
+                field.set(this, value);
+            else
+                throw new IllegalArgumentException(type.getName() + " type is not supported by redbit");
+        }
     }
 
     private Map<String, String> getStructValues(RedbitStructInfo structInfo, boolean ignoreNullValues) throws NoSuchFieldException, IllegalAccessException {
@@ -154,16 +193,12 @@ public class RedbitStruct implements AutoCloseable {
         return valueMap;
     }
 
-    private String getIdValue(RedbitStructInfo structInfo) throws NoSuchFieldException, IllegalAccessException {
+    private Object getIdFieldValue(RedbitStructInfo structInfo) throws NoSuchFieldException, IllegalAccessException {
         RedbitColumnInfo columnInfo = structInfo.getIdColumn();
         Field field = getClass().getDeclaredField(columnInfo.getFieldName());
         field.setAccessible(true);
-        Object value = field.get(this);
 
-        if (value == null)
-            throw new IllegalArgumentException("Null value for id in table " + structInfo.getName());
-
-        return value.toString();
+        return field.get(this);
     }
 
 }
