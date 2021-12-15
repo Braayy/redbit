@@ -17,15 +17,11 @@ public class RedbitStructRegistry {
 
     private final Map<Class<? extends RedbitStruct>, RedbitStructInfo> structMap;
 
-    public <T extends RedbitStruct> void registerTable(Class<T> tableClass) {
-        registerTable(tableClass.getSimpleName(), tableClass);
-    }
-
-    public <T extends RedbitStruct> void registerTable(String tableName, Class<T> tableClass) {
+    public <T extends RedbitStruct> void registerStruct(String structName, Class<T> structClass) {
         RedbitColumnInfo tableIdColumn = null;
         List<RedbitColumnInfo> columns = new ArrayList<>();
 
-        for (Field field : tableClass.getDeclaredFields()) {
+        for (Field field : structClass.getDeclaredFields()) {
             RedbitColumn redbitColumn = field.getAnnotation(RedbitColumn.class);
             if (redbitColumn == null) continue;
 
@@ -39,10 +35,10 @@ public class RedbitStructRegistry {
             boolean nullable = redbitColumn.nullable();
 
             if (autoIncrement && !idColumn)
-                throw new IllegalArgumentException("Only a id column can have a auto increment in struct " + tableName);
+                throw new IllegalArgumentException("Only a id column can have a auto increment in struct " + structName);
 
             if (field.getType().isPrimitive())
-                throw new IllegalArgumentException("Use boxed version of primitives type for nullability in struct " + tableName);
+                throw new IllegalArgumentException("Use boxed version of primitives type for nullability in struct " + structName);
 
             if (Objects.equals(name, ""))
                 name = fieldName;
@@ -61,7 +57,7 @@ public class RedbitStructRegistry {
 
             if (idColumn) {
                 if (tableIdColumn != null)
-                    throw new IllegalArgumentException("Two or more id columns detected in struct " + tableName);
+                    throw new IllegalArgumentException("Two or more id columns detected in struct " + structName);
 
                 tableIdColumn = columnInfo;
 
@@ -72,11 +68,11 @@ public class RedbitStructRegistry {
         }
 
         if (tableIdColumn == null)
-            throw new IllegalArgumentException("No id column found in struct " + tableName);
+            throw new IllegalArgumentException("No id column found in struct " + structName);
 
-        RedbitStructInfo tableInfo = new RedbitStructInfo(tableName, tableIdColumn, columns);
+        RedbitStructInfo tableInfo = new RedbitStructInfo(structName, tableIdColumn, columns);
 
-        structMap.put(tableClass, tableInfo);
+        structMap.put(structClass, tableInfo);
     }
 
     @Nullable
