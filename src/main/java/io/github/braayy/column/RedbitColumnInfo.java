@@ -3,15 +3,16 @@ package io.github.braayy.column;
 public class RedbitColumnInfo {
 
     private final String fieldName, name, sqlCreation, defaultValue;
-    private final boolean idColumn, autoIncrement;
+    private final boolean idColumn, autoIncrement, nullable;
 
-    public RedbitColumnInfo(String fieldName, String name, String sqlCreation, String defaultValue, boolean idColumn, boolean autoIncrement) {
+    public RedbitColumnInfo(String fieldName, String name, String sqlCreation, String defaultValue, boolean idColumn, boolean autoIncrement, boolean nullable) {
         this.fieldName = fieldName;
         this.name = name;
         this.sqlCreation = sqlCreation;
         this.defaultValue = defaultValue;
         this.idColumn = idColumn;
         this.autoIncrement = autoIncrement;
+        this.nullable = nullable;
     }
 
     public String getFieldName() {
@@ -36,5 +37,9 @@ public class RedbitColumnInfo {
 
     public boolean isAutoIncrement() {
         return autoIncrement;
+    }
+
+    public boolean isNullable() {
+        return nullable;
     }
 }

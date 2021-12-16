@@ -133,6 +133,11 @@ public class RedbitStruct {
 
             Class<?> type = field.getType();
 
+            if (columnInfo.isNullable() && set.getObject(columnInfo.getName()) == null) {
+                field.set(this, null);
+                continue;
+            }
+
             if (type.equals(Byte.class))
                 field.set(this, set.getByte(columnInfo.getName()));
             else if (type.equals(Character.class))
@@ -158,6 +163,12 @@ public class RedbitStruct {
             Class<?> type = field.getType();
 
             String value = valueMap.get(columnInfo.getName());
+
+            if (Objects.equals(value, "") && columnInfo.isNullable()) {
+                field.set(this, null);
+                continue;
+            }
+
             if (type.equals(Byte.class))
                 field.set(this, Byte.parseByte(value));
             else if (type.equals(Character.class))

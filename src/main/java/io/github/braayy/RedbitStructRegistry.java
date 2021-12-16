@@ -34,11 +34,14 @@ public class RedbitStructRegistry {
             boolean autoIncrement = redbitColumn.autoIncrement();
             boolean nullable = redbitColumn.nullable();
 
+            if (idColumn && nullable)
+                throw new IllegalArgumentException("Id column cannot be nullable in struct " + structName);
+
             if (autoIncrement && !idColumn)
                 throw new IllegalArgumentException("Only a id column can have a auto increment in struct " + structName);
 
             if (field.getType().isPrimitive())
-                throw new IllegalArgumentException("Use boxed version of primitives type for nullability in struct " + structName);
+                throw new IllegalArgumentException("Use boxed version of primitive types for nullability in struct " + structName);
 
             if (Objects.equals(name, ""))
                 name = fieldName;
@@ -53,7 +56,7 @@ public class RedbitStructRegistry {
             if (!Objects.equals(defaultValue, ""))
                 sqlCreation.append(" DEFAULT '").append(defaultValue).append('\'');
 
-            RedbitColumnInfo columnInfo = new RedbitColumnInfo(fieldName, name, sqlCreation.toString(), defaultValue, idColumn, autoIncrement);
+            RedbitColumnInfo columnInfo = new RedbitColumnInfo(fieldName, name, sqlCreation.toString(), defaultValue, idColumn, autoIncrement, nullable);
 
             if (idColumn) {
                 if (tableIdColumn != null)
