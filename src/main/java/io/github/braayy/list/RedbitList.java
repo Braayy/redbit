@@ -4,9 +4,7 @@ import io.github.braayy.Redbit;
 import redis.clients.jedis.Jedis;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
@@ -29,14 +27,12 @@ public abstract class RedbitList<T> {
 
     public boolean add(List<T> elements) {
         try {
-            if (elements.size() == 0) {
-                throw new IllegalArgumentException("At least one element should be added with RedbitList#add(T[])");
-            }
+            if (elements.size() == 0) return true;
 
             Jedis jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
-            String[] strings = ((String[]) elements.stream().map(this::toString).toArray());
+            String[] strings = elements.stream().map(this::toString).toArray(String[]::new);
 
             jedis.lpush(this.key, strings);
 
@@ -74,7 +70,20 @@ public abstract class RedbitList<T> {
         } catch (Exception exception) {
             Redbit.getLogger().log(Level.SEVERE, "Something went wrong while ranging items from redbit list", exception);
 
-            return null;
+            return Collections.emptyList();
+        }
+    }
+
+    public long size() {
+        try {
+            Jedis jedis = Redbit.getJedis();
+            Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
+
+            return jedis.llen(this.key);
+        } catch (Exception exception) {
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while ranging items from redbit list", exception);
+
+            return -1L;
         }
     }
 
