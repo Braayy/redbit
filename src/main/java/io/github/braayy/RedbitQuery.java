@@ -9,6 +9,7 @@ public class RedbitQuery implements AutoCloseable {
 
     private final Connection connection;
     private final PreparedStatement statement;
+    private ResultSet resultSet;
 
     public RedbitQuery(Connection connection, PreparedStatement statement) {
         this.connection = connection;
@@ -16,7 +17,7 @@ public class RedbitQuery implements AutoCloseable {
     }
 
     public ResultSet executeQuery() throws SQLException {
-        return this.statement.executeQuery();
+        return (this.resultSet = this.statement.executeQuery());
     }
 
     public void executeUpdate() throws SQLException {
@@ -31,9 +32,14 @@ public class RedbitQuery implements AutoCloseable {
         return statement;
     }
 
+    public ResultSet getResultSet() {
+        return resultSet;
+    }
+
     @Override
     public void close() throws SQLException {
-        if (connection != null) connection.close();
+        if (resultSet != null) resultSet.close();
         if (statement != null) statement.close();
+        if (connection != null) connection.close();
     }
 }

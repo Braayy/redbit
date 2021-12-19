@@ -15,6 +15,8 @@ import java.util.logging.Level;
 
 public class RedbitStruct {
 
+    private RedbitQuery currentQuery;
+
     public boolean upsert() {
         return upsert(false, false);
     }
@@ -120,10 +122,71 @@ public class RedbitStruct {
 
             return FetchResult.NOT_FOUND;
         } catch (Exception exception) {
-            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while getting struct from redis/mysql", exception);
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while fetching struct from redis/mysql", exception);
 
             return FetchResult.ERROR;
         }
+    }
+
+    public boolean customFetch(String customQuery) {
+        try {
+            RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
+            if (structInfo == null) {
+                throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
+            }
+
+            String strQuery = prepareCustomQuery(structInfo, customQuery);
+
+            currentQuery = Redbit.sqlQuery(strQuery);
+            currentQuery.executeQuery();
+
+            return next();
+        } catch (Exception exception) {
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while custom fetching struct from redis/mysql", exception);
+
+            return false;
+        }
+    }
+
+    public boolean next() {
+        try {
+            RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
+            if (structInfo == null) {
+                throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
+            }
+
+            if (currentQuery == null)
+                throw new IllegalArgumentException("No current query was set! RedbitStruct#customFetch(String) should do it");
+
+            if (currentQuery.getStatement().isClosed())
+                throw new IllegalArgumentException("Current Query's Statement is closed!");
+
+            ResultSet resultSet = currentQuery.getResultSet();
+
+            if (resultSet == null) {
+                currentQuery.close();
+                currentQuery = null;
+                throw new IllegalArgumentException("No ResultSet found in Current Query!");
+            }
+
+            if (!resultSet.next()) {
+                currentQuery.close();
+                currentQuery = null;
+                return false;
+            }
+
+            setFieldsValueFromResultSet(structInfo, resultSet);
+
+            return true;
+        } catch (Exception exception) {
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while advancing to next entry", exception);
+
+            return false;
+        }
+    }
+
+    private String prepareCustomQuery(RedbitStructInfo structInfo, String customQuery) {
+        return customQuery.replace("{table}", structInfo.getName());
     }
 
     private void setFieldsValueFromResultSet(RedbitStructInfo structInfo, ResultSet set) throws SQLException, NoSuchFieldException, IllegalAccessException {
