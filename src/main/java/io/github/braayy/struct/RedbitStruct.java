@@ -13,7 +13,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.logging.Level;
 
-public class RedbitStruct {
+public class RedbitStruct implements AutoCloseable {
 
     private RedbitQuery currentQuery;
 
@@ -28,16 +28,14 @@ public class RedbitStruct {
     private boolean upsert(boolean ignoreNullValues, boolean fromDatabase) {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
-            if (structInfo == null) {
+            if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
-            }
 
             Map<String, String> valueMap = getStructValues(structInfo, ignoreNullValues);
 
             String idValue = valueMap.remove(structInfo.getIdColumn().getName());
-            if (idValue == null || Objects.equals(idValue, "")) {
+            if (idValue == null || Objects.equals(idValue, ""))
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
-            }
 
             Jedis jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
@@ -59,14 +57,12 @@ public class RedbitStruct {
     public boolean delete() {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
-            if (structInfo == null) {
+            if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
-            }
 
             Object idValue = getIdFieldValue(structInfo);
-            if (idValue == null || Objects.equals(idValue, "")) {
+            if (idValue == null || Objects.equals(idValue, ""))
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
-            }
 
             Jedis jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
@@ -87,14 +83,12 @@ public class RedbitStruct {
     public FetchResult fetch() {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
-            if (structInfo == null) {
+            if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
-            }
 
             Object idValue = getIdFieldValue(structInfo);
-            if (idValue == null || Objects.equals(idValue, "")) {
+            if (idValue == null || Objects.equals(idValue, ""))
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
-            }
 
             Jedis jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
@@ -113,7 +107,7 @@ public class RedbitStruct {
                 ResultSet set = query.executeQuery();
 
                 if (set.next()) {
-                    setFieldsValueFromResultSet(structInfo, set);
+                    setFieldsValueFromResultSet(structInfo, set, false);
                     upsert(false, true);
 
                     return FetchResult.FOUND;
@@ -131,9 +125,8 @@ public class RedbitStruct {
     public boolean customFetch(String customQuery) {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
-            if (structInfo == null) {
+            if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
-            }
 
             String strQuery = prepareCustomQuery(structInfo, customQuery);
 
@@ -151,9 +144,8 @@ public class RedbitStruct {
     public boolean next() {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
-            if (structInfo == null) {
+            if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
-            }
 
             if (currentQuery == null)
                 throw new IllegalArgumentException("No current query was set! RedbitStruct#customFetch(String) should do it");
@@ -175,7 +167,7 @@ public class RedbitStruct {
                 return false;
             }
 
-            setFieldsValueFromResultSet(structInfo, resultSet);
+            setFieldsValueFromResultSet(structInfo, resultSet, true);
 
             return true;
         } catch (Exception exception) {
@@ -185,20 +177,35 @@ public class RedbitStruct {
         }
     }
 
+    @Override
+    public void close() throws SQLException {
+        currentQuery.close();
+    }
+
     private String prepareCustomQuery(RedbitStructInfo structInfo, String customQuery) {
         return customQuery.replace("{table}", structInfo.getName());
     }
 
-    private void setFieldsValueFromResultSet(RedbitStructInfo structInfo, ResultSet set) throws SQLException, NoSuchFieldException, IllegalAccessException {
+    private void setFieldsValueFromResultSet(RedbitStructInfo structInfo, ResultSet set, boolean ignoreNonSelectedColumns) throws SQLException, NoSuchFieldException, IllegalAccessException {
         for (RedbitColumnInfo columnInfo : structInfo.getColumns()) {
             Field field = getClass().getDeclaredField(columnInfo.getFieldName());
             field.setAccessible(true);
 
             Class<?> type = field.getType();
 
-            if (columnInfo.isNullable() && set.getObject(columnInfo.getName()) == null) {
-                field.set(this, null);
-                continue;
+            try {
+                if (columnInfo.isNullable() && set.getObject(columnInfo.getName()) == null) {
+                    field.set(this, null);
+                    continue;
+                }
+            } catch (SQLException exception) {
+                if (!ignoreNonSelectedColumns) throw exception;
+
+                String lower = exception.getMessage().toLowerCase(Locale.ROOT);
+                if (lower.contains("invalid") && lower.contains("column"))
+                    continue;
+                else
+                    throw exception;
             }
 
             if (type.equals(Byte.class))
