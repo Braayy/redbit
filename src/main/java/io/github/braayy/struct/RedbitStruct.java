@@ -202,7 +202,7 @@ public class RedbitStruct implements AutoCloseable {
                 if (!ignoreNonSelectedColumns) throw exception;
 
                 String lower = exception.getMessage().toLowerCase(Locale.ROOT);
-                if (lower.contains("invalid") && lower.contains("column"))
+                if (lower.contains("column") && lower.contains("not") && lower.contains("found"))
                     continue;
                 else
                     throw exception;
