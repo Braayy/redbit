@@ -6,6 +6,7 @@ import io.github.braayy.synchronization.RedbitSynchronizationTimer;
 import io.github.braayy.synchronization.RedbitSynchronizer;
 import io.github.braayy.utils.RedbitQueryBuilders;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPooled;
 
 import javax.annotation.Nullable;
 import java.sql.Connection;
@@ -30,7 +31,7 @@ public class Redbit {
     private final Logger logger = Logger.getLogger("Redbit Logger");
     private RedbitSynchronizationTimer synchronizationTimer;
     private RedbitSynchronizer synchronizer;
-    private Jedis jedis;
+    private JedisPooled jedis;
     private HikariDataSource dataSource;
     private RedbitConfig config;
 
@@ -40,7 +41,7 @@ public class Redbit {
         instance.synchronizationTimer = new RedbitSynchronizationTimer();
         instance.synchronizer = new RedbitSynchronizer();
 
-        instance.jedis = new Jedis(config.getRedisHost(), config.getRedisPort());
+        instance.jedis = new JedisPooled(config.getRedisHost(), config.getRedisPort());
 
         instance.dataSource = new HikariDataSource();
         instance.dataSource.setJdbcUrl(String.format("jdbc:mysql://%s:%d/%s", config.getMysqlHost(), config.getMysqlPort(), config.getMysqlDatabase()));
@@ -85,7 +86,7 @@ public class Redbit {
     }
 
     @Nullable
-    public static Jedis getJedis() {
+    public static JedisPooled getJedis() {
         return instance.jedis;
     }
 

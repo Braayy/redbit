@@ -2,6 +2,7 @@ package io.github.braayy.list;
 
 import io.github.braayy.Redbit;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPooled;
 
 import javax.annotation.Nonnull;
 import java.util.*;
@@ -29,7 +30,7 @@ public abstract class RedbitList<T> {
         try {
             if (elements.size() == 0) return true;
 
-            Jedis jedis = Redbit.getJedis();
+            JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
             String[] strings = elements.stream().map(this::toString).toArray(String[]::new);
@@ -46,7 +47,7 @@ public abstract class RedbitList<T> {
 
     public boolean remove(@Nonnull T value) {
         try {
-            Jedis jedis = Redbit.getJedis();
+            JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
             jedis.lrem(this.key, 1, toString(value));
@@ -61,7 +62,7 @@ public abstract class RedbitList<T> {
 
     public List<T> range(int start, int end) {
         try {
-            Jedis jedis = Redbit.getJedis();
+            JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
             List<String> range = jedis.lrange(this.key, start, end);
@@ -76,7 +77,7 @@ public abstract class RedbitList<T> {
 
     public long size() {
         try {
-            Jedis jedis = Redbit.getJedis();
+            JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
             return jedis.llen(this.key);

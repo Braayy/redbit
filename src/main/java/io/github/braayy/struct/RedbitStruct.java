@@ -6,6 +6,7 @@ import io.github.braayy.column.RedbitColumnInfo;
 import io.github.braayy.synchronization.RedbitSynchronizationEntry.Operation;
 import io.github.braayy.utils.RedbitQueryBuilders;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPooled;
 
 import java.lang.reflect.Field;
 import java.sql.ResultSet;
@@ -37,7 +38,7 @@ public class RedbitStruct implements AutoCloseable {
             if (idValue == null || Objects.equals(idValue, ""))
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
 
-            Jedis jedis = Redbit.getJedis();
+            JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
             String key = String.format(Redbit.KEY_FORMAT, structInfo.getName(), idValue);
@@ -64,7 +65,7 @@ public class RedbitStruct implements AutoCloseable {
             if (idValue == null || Objects.equals(idValue, ""))
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
 
-            Jedis jedis = Redbit.getJedis();
+            JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
             String key = String.format(Redbit.KEY_FORMAT, structInfo.getName(), idValue);
@@ -90,7 +91,7 @@ public class RedbitStruct implements AutoCloseable {
             if (idValue == null || Objects.equals(idValue, ""))
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
 
-            Jedis jedis = Redbit.getJedis();
+            JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
             String key = String.format(Redbit.KEY_FORMAT, structInfo.getName(), idValue);

@@ -4,6 +4,7 @@ import io.github.braayy.Redbit;
 import io.github.braayy.RedbitQuery;
 import io.github.braayy.utils.RedbitQueryBuilders;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPooled;
 
 import java.util.Map;
 import java.util.Objects;
@@ -22,7 +23,7 @@ public class RedbitSynchronizationTask implements Runnable {
         try {
             String stringQuery;
             if (entry.getOperation() == RedbitSynchronizationEntry.Operation.UPSERT) {
-                Jedis jedis = Redbit.getJedis();
+                JedisPooled jedis = Redbit.getJedis();
                 Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
                 String key = String.format(Redbit.KEY_FORMAT, entry.getStructInfo().getName(), entry.getIdValue());
