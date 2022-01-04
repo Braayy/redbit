@@ -130,6 +130,9 @@ public class RedbitStruct implements AutoCloseable {
 
             String strQuery = prepareCustomQuery(structInfo, customQuery);
 
+            if (Redbit.getConfig().isDebug())
+                Redbit.getLogger().info("[SQL] " + strQuery);
+
             currentQuery = Redbit.sqlQuery(strQuery);
             currentQuery.executeQuery();
 
@@ -179,7 +182,7 @@ public class RedbitStruct implements AutoCloseable {
 
     @Override
     public void close() throws SQLException {
-        currentQuery.close();
+        if (currentQuery != null) currentQuery.close();
     }
 
     private String prepareCustomQuery(RedbitStructInfo structInfo, String customQuery) {
@@ -194,7 +197,7 @@ public class RedbitStruct implements AutoCloseable {
             Class<?> type = field.getType();
 
             try {
-                if (columnInfo.isNullable() && set.getObject(columnInfo.getName()) == null) {
+                if (set.getObject(columnInfo.getName()) == null && columnInfo.isNullable()) {
                     field.set(this, null);
                     continue;
                 }
