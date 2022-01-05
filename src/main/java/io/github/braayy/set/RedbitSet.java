@@ -1,5 +1,6 @@
-package io.github.braayy.list;
+package io.github.braayy.set;
 
+import com.google.common.collect.Sets;
 import io.github.braayy.Redbit;
 import redis.clients.jedis.JedisPooled;
 
@@ -8,11 +9,11 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
-public abstract class RedbitList<T> {
+public abstract class RedbitSet<T> {
 
     private final String key;
 
-    public RedbitList(String name, String id) {
+    public RedbitSet(String name, String id) {
         this.key = String.format(Redbit.KEY_FORMAT, name, id);
     }
 
@@ -22,10 +23,10 @@ public abstract class RedbitList<T> {
 
     @SafeVarargs
     public final boolean add(@Nonnull T... values) {
-        return add(Arrays.asList(values));
+        return add(Sets.newHashSet(values));
     }
 
-    public boolean add(List<T> elements) {
+    public boolean add(Set<T> elements) {
         try {
             if (elements.size() == 0) return true;
 
@@ -34,11 +35,11 @@ public abstract class RedbitList<T> {
 
             String[] strings = elements.stream().map(this::toString).toArray(String[]::new);
 
-            jedis.lpush(this.key, strings);
+            jedis.sadd(this.key, strings);
 
             return true;
         } catch (Exception exception) {
-            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while adding item to redbit list", exception);
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while adding item to redbit set", exception);
 
             return false;
         }
@@ -49,28 +50,28 @@ public abstract class RedbitList<T> {
             JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
-            jedis.lrem(this.key, 1, toString(value));
+            jedis.srem(this.key, toString(value));
 
             return true;
         } catch (Exception exception) {
-            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while removing item from redbit list", exception);
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while removing item from redbit set", exception);
 
             return false;
         }
     }
 
-    public List<T> range(int start, int end) {
+    public Set<T> fetch() {
         try {
             JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
-            List<String> range = jedis.lrange(this.key, start, end);
+            Set<String> range = jedis.smembers(this.key);
 
-            return range.stream().map(this::fromString).collect(Collectors.toList());
+            return range.stream().map(this::fromString).collect(Collectors.toSet());
         } catch (Exception exception) {
-            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while ranging items from redbit list", exception);
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while ranging items from redbit set", exception);
 
-            return Collections.emptyList();
+            return Collections.emptySet();
         }
     }
 
@@ -79,9 +80,9 @@ public abstract class RedbitList<T> {
             JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
-            return jedis.llen(this.key);
+            return jedis.scard(this.key);
         } catch (Exception exception) {
-            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while ranging items from redbit list", exception);
+            Redbit.getLogger().log(Level.SEVERE, "Something went wrong while ranging items from redbit set", exception);
 
             return -1L;
         }

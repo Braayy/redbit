@@ -3,7 +3,6 @@ package io.github.braayy.synchronization;
 import io.github.braayy.Redbit;
 import io.github.braayy.RedbitQuery;
 import io.github.braayy.utils.RedbitQueryBuilders;
-import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPooled;
 
 import java.util.Map;
