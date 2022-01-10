@@ -5,34 +5,44 @@ import io.github.braayy.synchronization.RedbitSynchronizationEntry.Operation;
 import io.github.braayy.struct.RedbitStructInfo;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class RedbitSynchronizer {
 
     private final List<RedbitSynchronizationEntry> modifiedEntries = new ArrayList<>();
-
+    private final Lock lock = new ReentrantLock();
     private final Queue<RedbitSynchronizationEntry> remainingEntries = new ArrayDeque<>();
     private final ExecutorService executorService = Executors.newFixedThreadPool(Redbit.getConfig().getParallelTasks());
 
     private boolean completed = true;
 
-    public void synchronize() {
-        if (modifiedEntries.size() == 0 || !completed) return;
+    void synchronize() {
+        lock.lock();
+        try {
+            if (modifiedEntries.size() == 0 || !completed) return;
 
-        remainingEntries.clear();
-        remainingEntries.addAll(modifiedEntries);
-        completed = false;
+            remainingEntries.clear();
+            remainingEntries.addAll(modifiedEntries);
+            completed = false;
 
-        modifiedEntries.clear();
+            modifiedEntries.clear();
 
-        nextKeys();
+            nextKeys();
+        } finally {
+            lock.unlock();
+        }
     }
 
     public void addModifiedKey(RedbitStructInfo structInfo, String idValue, Operation operation) {
-        this.modifiedEntries.removeIf(entry -> entry.getIdValue().equals(idValue));
-        this.modifiedEntries.add(new RedbitSynchronizationEntry(structInfo, idValue, operation));
+        lock.lock();
+        try {
+            this.modifiedEntries.removeIf(entry -> entry.getIdValue().equals(idValue) && entry.getOperation() == operation);
+            this.modifiedEntries.add(new RedbitSynchronizationEntry(structInfo, idValue, operation));
+        } finally {
+            lock.unlock();
+        }
     }
 
     @SuppressWarnings("rawtypes")

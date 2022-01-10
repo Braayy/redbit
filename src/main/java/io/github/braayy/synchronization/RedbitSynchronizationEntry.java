@@ -27,7 +27,7 @@ public class RedbitSynchronizationEntry {
     }
 
     public enum Operation {
-        UPSERT, DELETE
+        UPSERT, DELETE, DELETE_ALL
     }
 
 }
