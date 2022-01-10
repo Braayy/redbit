@@ -5,14 +5,16 @@ import io.github.braayy.column.RedbitColumnInfo;
 import io.github.braayy.struct.RedbitStructInfo;
 
 import java.util.Map;
-import java.util.Objects;
 
 public class RedbitQueryBuilders {
 
-    public static String buildUpsertQuery(RedbitStructInfo structInfo, Map<String, String> valueMap) {
+    public static String buildUpsertQuery(RedbitStructInfo structInfo, Map<String, String> valueMap, boolean ignoreNullColumns) {
         StringBuilder builder = new StringBuilder("INSERT INTO `").append(structInfo.getName()).append("`(");
         boolean first = true;
         for (RedbitColumnInfo columnInfo : structInfo.getAllColumns()) {
+            String value = valueMap.get(columnInfo.getName());
+            if (RedbitUtils.isNullString(value) && ignoreNullColumns) continue;
+
             builder.append(!first ? ", " : "").append('`').append(columnInfo.getName()).append('`');
 
             first = false;
@@ -22,10 +24,11 @@ public class RedbitQueryBuilders {
         first = true;
         for (RedbitColumnInfo columnInfo : structInfo.getAllColumns()) {
             String value = valueMap.get(columnInfo.getName());
+            if (RedbitUtils.isNullString(value) && ignoreNullColumns) continue;
 
             builder.append(!first ? ", " : "");
 
-            if (Objects.equals(value, ""))
+            if (RedbitUtils.isNullString(value))
                 builder.append("DEFAULT");
             else
                 builder.append('\'').append(RedbitUtils.escapeToSql(value)).append('\'');
@@ -37,10 +40,11 @@ public class RedbitQueryBuilders {
         first = true;
         for (RedbitColumnInfo columnInfo : structInfo.getColumns()) {
             String value = valueMap.get(columnInfo.getName());
+            if (RedbitUtils.isNullString(value) && ignoreNullColumns) continue;
 
             builder.append(!first ? ", " : "").append('`').append(columnInfo.getName()).append("`=");
 
-            if (Objects.equals(value, ""))
+            if (RedbitUtils.isNullString(value))
                 builder.append("DEFAULT");
             else
                 builder.append('\'').append(RedbitUtils.escapeToSql(value)).append('\'');
@@ -56,11 +60,11 @@ public class RedbitQueryBuilders {
         return query;
     }
 
-    public static String buildDeleteQuery(RedbitStructInfo structInfo, String idValue) {
-        StringBuilder builder = new StringBuilder("DELETE FROM `").append(structInfo.getName()).append("` WHERE ");
-        RedbitColumnInfo idColumn = structInfo.getIdColumn();
+    public static String buildDeleteQuery(RedbitStructInfo structInfo, String whereClause) {
+        StringBuilder builder = new StringBuilder("DELETE FROM `").append(structInfo.getName()).append('`');
 
-        builder.append('`').append(idColumn.getName()).append("`='").append(RedbitUtils.escapeToSql(idValue)).append('\'');
+        if (whereClause != null)
+            builder.append(" WHERE ").append(whereClause);
 
         String query = builder.toString();
 
@@ -93,10 +97,24 @@ public class RedbitQueryBuilders {
         return query;
     }
 
-    public static String buildSelectQuery(RedbitStructInfo structInfo, String idValue) {
+    public static String buildSelectByIdQuery(RedbitStructInfo structInfo, String idValue) {
         RedbitColumnInfo idColumn = structInfo.getIdColumn();
 
         String query = "SELECT * FROM `" + structInfo.getName() + "` WHERE `" + idColumn.getName() + "`='" + RedbitUtils.escapeToSql(idValue) + "' LIMIT 1";
+
+        if (Redbit.getConfig().isDebug())
+            Redbit.getLogger().info("[SQL] " + query);
+
+        return query;
+    }
+
+    public static String buildSelectByCustomQuery(RedbitStructInfo structInfo, String whereClause) {
+        String query;
+
+        if (whereClause == null)
+            query = "SELECT * FROM `" + structInfo.getName() + '`';
+        else
+            query = "SELECT * FROM `" + structInfo.getName() + "` WHERE " + whereClause;
 
         if (Redbit.getConfig().isDebug())
             Redbit.getLogger().info("[SQL] " + query);

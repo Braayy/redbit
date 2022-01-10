@@ -3,6 +3,7 @@ package io.github.braayy;
 import io.github.braayy.column.RedbitColumn;
 import io.github.braayy.column.RedbitColumnInfo;
 import io.github.braayy.struct.RedbitStruct;
+import io.github.braayy.struct.RedbitVolatileStruct;
 import io.github.braayy.struct.RedbitStructInfo;
 
 import javax.annotation.Nullable;
@@ -15,9 +16,9 @@ public class RedbitStructRegistry {
         this.structMap = new HashMap<>();
     }
 
-    private final Map<Class<? extends RedbitStruct>, RedbitStructInfo> structMap;
+    private final Map<Class<? extends RedbitVolatileStruct>, RedbitStructInfo> structMap;
 
-    public <T extends RedbitStruct> void registerStruct(String structName, Class<T> structClass) {
+    public <T extends RedbitVolatileStruct> void registerStruct(String structName, Class<T> structClass) {
         RedbitColumnInfo tableIdColumn = null;
         List<RedbitColumnInfo> columns = new ArrayList<>();
 

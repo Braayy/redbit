@@ -1,5 +1,7 @@
 package io.github.braayy.utils;
 
+import java.util.Objects;
+
 public class RedbitUtils {
 
     public static String[] toStringArray(Object[] input) {
@@ -14,7 +16,11 @@ public class RedbitUtils {
     }
 
     public static String escapeToSql(String value) {
-        return value.replace("'", "''");
+        return value.replace("'", "''").replace("\\", "\\\\");
+    }
+
+    public static boolean isNullString(String value) {
+        return value == null || Objects.equals(value, "");
     }
 
 }
