@@ -6,6 +6,10 @@ public class RedbitSynchronizationTimer extends Thread {
 
     private long nextRun = System.currentTimeMillis() + Redbit.getConfig().getSyncDelay();
 
+    public RedbitSynchronizationTimer() {
+        setDaemon(true);
+    }
+
     @Override
     public void run() {
         while (!isInterrupted()) {
