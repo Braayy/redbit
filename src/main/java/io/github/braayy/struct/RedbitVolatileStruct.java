@@ -123,9 +123,12 @@ public class RedbitVolatileStruct extends RedbitStruct {
             this.currentFetcher = new RedbitFetcher(scanParams);
 
             String nextKey;
+            List<String> keys = new ArrayList<>();
             while ((nextKey = this.currentFetcher.next()) != null) {
-                jedis.del(nextKey);
+                keys.add(nextKey);
             }
+
+            jedis.del(keys.toArray(new String[0]));
 
             if (synchronize)
                 Redbit.getSynchronizer().addModifiedKey(structInfo, null, Operation.DELETE_ALL);
@@ -136,11 +139,6 @@ public class RedbitVolatileStruct extends RedbitStruct {
 
             return false;
         }
-    }
-
-    @Override
-    public boolean deleteWhere(String whereClause) {
-        throw new UnsupportedOperationException("deleteWhere is not supported by RedbitVolatileStruct");
     }
 
     @Override
@@ -188,6 +186,23 @@ public class RedbitVolatileStruct extends RedbitStruct {
 
     @Override
     public FetchResult fetchAll() {
+        return fetchAll(false);
+    }
+
+    // TODO: Create a fetchAll that fetches from database and caches in redis, very inefficient but useful if a struct is extremely common. It should only be used in the start of the plugin.
+    // Thought: make a method that caches the struct in redis if it fits the needs, so it fetches from database and if the user wants, caches in redis.
+    /*
+    So something like this would be possible:
+
+    try (User user = new User()) {
+        if (user.fetchAll(true) == FetchResult.FOUND) {
+            do {
+                user.cacheInRedis();
+            } while (user.nextInDatabase() == FetchResult.FOUND);
+        }
+    }
+     */
+    public FetchResult fetchAll(boolean fromDatabase) {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
             if (structInfo == null)
@@ -196,18 +211,20 @@ public class RedbitVolatileStruct extends RedbitStruct {
             JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
-            ScanParams scanParams = new ScanParams().match(structInfo.getName() + ":*").count(10);
-            this.currentFetcher = new RedbitFetcher(scanParams);
+            if (fromDatabase) {
+                return FetchResult.COMPLETE; // TODO: Implement this thing :sob:
+            } else {
+                ScanParams scanParams = new ScanParams().match(structInfo.getName() + ":*").count(10);
+                this.currentFetcher = new RedbitFetcher(scanParams);
 
-            return this.nextInRedis();
+                return this.nextInRedis();
+            }
         } catch (Exception exception) {
             Redbit.getLogger().log(Level.SEVERE, exception.getMessage(), exception);
 
             return FetchResult.ERROR;
         }
     }
-
-    // TODO: Create a fetchAll that fetches from database and caches in redis, very inefficient but useful if a struct is extremely common. It should only be used in the start of the plugin.
 
     public FetchResult nextInRedis() {
         try {
