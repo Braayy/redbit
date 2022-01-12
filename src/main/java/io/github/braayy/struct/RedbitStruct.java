@@ -118,12 +118,12 @@ public class RedbitStruct implements AutoCloseable {
             if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
 
-            String strQuery = RedbitQueryBuilders.buildSelectByCustomQuery(structInfo, whereClause);
+            String strQuery = RedbitQueryBuilders.buildSelectByCustomWhere(structInfo, whereClause);
 
             this.currentQuery = Redbit.sqlQuery(strQuery);
             this.currentQuery.executeQuery();
 
-            return next();
+            return nextInDatabase();
         } catch (Exception exception) {
             Redbit.getLogger().log(Level.SEVERE, exception.getMessage(), exception);
 
@@ -145,7 +145,7 @@ public class RedbitStruct implements AutoCloseable {
             this.currentQuery = Redbit.sqlQuery(strQuery);
             this.currentQuery.executeQuery();
 
-            return next();
+            return nextInDatabase();
         } catch (Exception exception) {
             Redbit.getLogger().log(Level.SEVERE, exception.getMessage(), exception);
 
@@ -153,7 +153,7 @@ public class RedbitStruct implements AutoCloseable {
         }
     }
 
-    public FetchResult next() {
+    public FetchResult nextInDatabase() {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
             if (structInfo == null)

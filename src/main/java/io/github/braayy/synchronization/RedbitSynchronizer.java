@@ -16,10 +16,14 @@ public class RedbitSynchronizer extends Thread {
     private final Lock modifiedLock = new ReentrantLock();
     private final Lock remainingLock = new ReentrantLock();
     private final Queue<RedbitSynchronizationEntry> remainingEntries = new ArrayDeque<>();
-    private final ExecutorService executorService = Executors.newFixedThreadPool(Redbit.getConfig().getParallelTasks());
+    private final ExecutorService executorService = Executors.newFixedThreadPool(Redbit.getConfig().getParallelTasks() + 1);
 
     private final AtomicBoolean synchronizing = new AtomicBoolean(false);
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
+
+    public RedbitSynchronizer() {
+        super("Redbit Synchronizer Thread");
+    }
 
     @Override
     public void run() {
@@ -56,6 +60,12 @@ public class RedbitSynchronizer extends Thread {
 
     public void shutdown() {
         shutdown.set(true);
+        CompletableFuture.runAsync(this::synchronize, executorService);
+        executorService.shutdown();
+    }
+
+    public boolean isShuttingDown() {
+        return shutdown.get();
     }
 
     public void addModifiedKey(RedbitStructInfo structInfo, String idValue, Operation operation) {
@@ -72,25 +82,28 @@ public class RedbitSynchronizer extends Thread {
     private void nextBatch() {
         remainingLock.lock();
 
-        int parallelTasks = Math.min(Redbit.getConfig().getParallelTasks(), remainingEntries.size());
+        try {
+            int parallelTasks = Math.min(Redbit.getConfig().getParallelTasks(), remainingEntries.size());
 
-        if (parallelTasks <= 0) {
-            synchronizing.set(false);
-            return;
+            if (parallelTasks <= 0) {
+                synchronizing.set(false);
+                return;
+            }
+
+            CompletableFuture[] tasks = new CompletableFuture[parallelTasks];
+            for (int i = 0; i < parallelTasks; i++) {
+                RedbitSynchronizationEntry currentEntry = remainingEntries.poll();
+
+                tasks[i] = CompletableFuture
+                        .runAsync(new RedbitSynchronizationTask(currentEntry), executorService);
+            }
+
+            CompletableFuture
+                    .allOf(tasks)
+                    .thenRun(this::nextBatch);
+        } finally {
+            remainingLock.unlock();
         }
-
-        CompletableFuture[] tasks = new CompletableFuture[parallelTasks];
-        for (int i = 0; i < parallelTasks; i++) {
-            RedbitSynchronizationEntry currentEntry = remainingEntries.poll();
-
-            tasks[i] = CompletableFuture
-                    .runAsync(new RedbitSynchronizationTask(currentEntry), executorService);
-        }
-
-        CompletableFuture
-                .allOf(tasks)
-                .thenRun(remainingLock::unlock)
-                .thenRun(this::nextBatch);
     }
 
 }

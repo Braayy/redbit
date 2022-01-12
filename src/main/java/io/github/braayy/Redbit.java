@@ -5,7 +5,6 @@ import io.github.braayy.struct.RedbitStructInfo;
 import io.github.braayy.synchronization.RedbitSynchronizationTimer;
 import io.github.braayy.synchronization.RedbitSynchronizer;
 import io.github.braayy.utils.RedbitQueryBuilders;
-import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPooled;
 
 import javax.annotation.Nullable;
@@ -54,6 +53,7 @@ public class Redbit {
         instance.createTablesForStructs();
 
         instance.synchronizationTimer.start();
+        instance.synchronizer.start();
     }
 
     public static void stop() {

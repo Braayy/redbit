@@ -41,6 +41,9 @@ public class RedbitVolatileStruct extends RedbitStruct {
             if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
 
+            if (synchronize && Redbit.getSynchronizer().isShuttingDown())
+                throw new IllegalStateException("Synchronized operation ran while synchronizer is shutting down");
+
             Map<String, String> valueMap = getStructValues(structInfo, ignoreNullValues);
 
             String idValue = valueMap.remove(structInfo.getIdColumn().getName());
@@ -75,6 +78,9 @@ public class RedbitVolatileStruct extends RedbitStruct {
             if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
 
+            if (synchronize && Redbit.getSynchronizer().isShuttingDown())
+                throw new IllegalStateException("Synchronized operation ran while synchronizer is shutting down");
+
             String idValue = getIdFieldValue(structInfo);
             if (RedbitUtils.isNullString(idValue))
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
@@ -107,6 +113,9 @@ public class RedbitVolatileStruct extends RedbitStruct {
             if (structInfo == null)
                 throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
 
+            if (synchronize && Redbit.getSynchronizer().isShuttingDown())
+                throw new IllegalStateException("Synchronized operation ran while synchronizer is shutting down");
+
             JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
@@ -127,6 +136,11 @@ public class RedbitVolatileStruct extends RedbitStruct {
 
             return false;
         }
+    }
+
+    @Override
+    public boolean deleteWhere(String whereClause) {
+        throw new UnsupportedOperationException("deleteWhere is not supported by RedbitVolatileStruct");
     }
 
     @Override
@@ -185,7 +199,7 @@ public class RedbitVolatileStruct extends RedbitStruct {
             ScanParams scanParams = new ScanParams().match(structInfo.getName() + ":*").count(10);
             this.currentFetcher = new RedbitFetcher(scanParams);
 
-            return next();
+            return this.nextInRedis();
         } catch (Exception exception) {
             Redbit.getLogger().log(Level.SEVERE, exception.getMessage(), exception);
 
@@ -193,8 +207,9 @@ public class RedbitVolatileStruct extends RedbitStruct {
         }
     }
 
-    @Override
-    public FetchResult next() {
+    // TODO: Create a fetchAll that fetches from database and caches in redis, very inefficient but useful if a struct is extremely common. It should only be used in the start of the plugin.
+
+    public FetchResult nextInRedis() {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
             if (structInfo == null)

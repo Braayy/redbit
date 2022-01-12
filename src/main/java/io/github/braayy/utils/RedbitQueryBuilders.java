@@ -108,7 +108,7 @@ public class RedbitQueryBuilders {
         return query;
     }
 
-    public static String buildSelectByCustomQuery(RedbitStructInfo structInfo, String whereClause) {
+    public static String buildSelectByCustomWhere(RedbitStructInfo structInfo, String whereClause) {
         String query;
 
         if (whereClause == null)
