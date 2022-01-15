@@ -5,9 +5,9 @@ import io.github.braayy.struct.RedbitStructInfo;
 import io.github.braayy.synchronization.RedbitSynchronizationTimer;
 import io.github.braayy.synchronization.RedbitSynchronizer;
 import io.github.braayy.utils.RedbitQueryBuilders;
+import org.jetbrains.annotations.Nullable;
 import redis.clients.jedis.JedisPooled;
 
-import javax.annotation.Nullable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -96,6 +96,9 @@ public class Redbit {
 
     public static RedbitQuery sqlQuery(String query) throws SQLException {
         Objects.requireNonNull(instance.dataSource, "Hikari was not initialized yet! Redbit#init(RedbitConfig) should do it");
+
+        if (Redbit.getConfig().isDebug())
+            Redbit.getLogger().info("[Redbit SQL] " + query);
 
         Connection connection = instance.dataSource.getConnection();
         PreparedStatement stmt = connection.prepareStatement(query);

@@ -54,9 +54,6 @@ public class RedbitQueryBuilders {
 
         String query = builder.toString();
 
-        if (Redbit.getConfig().isDebug())
-            Redbit.getLogger().info("[SQL] " + query);
-
         return query;
     }
 
@@ -67,9 +64,6 @@ public class RedbitQueryBuilders {
             builder.append(" WHERE ").append(whereClause);
 
         String query = builder.toString();
-
-        if (Redbit.getConfig().isDebug())
-            Redbit.getLogger().info("[SQL] " + query);
 
         return query;
     }
@@ -91,9 +85,6 @@ public class RedbitQueryBuilders {
 
         String query = builder.toString();
 
-        if (Redbit.getConfig().isDebug())
-            Redbit.getLogger().info("[SQL] " + query);
-
         return query;
     }
 
@@ -101,9 +92,6 @@ public class RedbitQueryBuilders {
         RedbitColumnInfo idColumn = structInfo.getIdColumn();
 
         String query = "SELECT * FROM `" + structInfo.getName() + "` WHERE `" + idColumn.getName() + "`='" + RedbitUtils.escapeToSql(idValue) + "' LIMIT 1";
-
-        if (Redbit.getConfig().isDebug())
-            Redbit.getLogger().info("[SQL] " + query);
 
         return query;
     }
@@ -115,9 +103,6 @@ public class RedbitQueryBuilders {
             query = "SELECT * FROM `" + structInfo.getName() + '`';
         else
             query = "SELECT * FROM `" + structInfo.getName() + "` WHERE " + whereClause;
-
-        if (Redbit.getConfig().isDebug())
-            Redbit.getLogger().info("[SQL] " + query);
 
         return query;
     }

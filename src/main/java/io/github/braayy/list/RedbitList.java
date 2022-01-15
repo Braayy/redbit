@@ -3,7 +3,7 @@ package io.github.braayy.list;
 import io.github.braayy.Redbit;
 import redis.clients.jedis.JedisPooled;
 
-import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
@@ -21,11 +21,11 @@ public abstract class RedbitList<T> {
     public abstract String toString(T input);
 
     @SafeVarargs
-    public final boolean add(@Nonnull T... values) {
+    public final boolean add(@NotNull T... values) {
         return add(Arrays.asList(values));
     }
 
-    public boolean add(List<T> elements) {
+    public boolean add(@NotNull List<T> elements) {
         try {
             if (elements.size() == 0) return true;
 
@@ -44,7 +44,7 @@ public abstract class RedbitList<T> {
         }
     }
 
-    public boolean remove(@Nonnull T value) {
+    public boolean remove(@NotNull T value) {
         try {
             JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
@@ -59,6 +59,7 @@ public abstract class RedbitList<T> {
         }
     }
 
+    @NotNull
     public List<T> range(int start, int end) {
         try {
             JedisPooled jedis = Redbit.getJedis();

@@ -1,10 +1,9 @@
 package io.github.braayy.set;
 
-import com.google.common.collect.Sets;
 import io.github.braayy.Redbit;
+import org.jetbrains.annotations.NotNull;
 import redis.clients.jedis.JedisPooled;
 
-import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
@@ -22,8 +21,8 @@ public abstract class RedbitSet<T> {
     public abstract String toString(T input);
 
     @SafeVarargs
-    public final boolean add(@Nonnull T... values) {
-        return add(Sets.newHashSet(values));
+    public final boolean add(@NotNull T... values) {
+        return add(Set.of(values));
     }
 
     public boolean add(Set<T> elements) {
@@ -45,7 +44,7 @@ public abstract class RedbitSet<T> {
         }
     }
 
-    public boolean remove(@Nonnull T value) {
+    public boolean remove(@NotNull T value) {
         try {
             JedisPooled jedis = Redbit.getJedis();
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
@@ -60,6 +59,7 @@ public abstract class RedbitSet<T> {
         }
     }
 
+    @NotNull
     public Set<T> fetch() {
         try {
             JedisPooled jedis = Redbit.getJedis();

@@ -3,10 +3,9 @@ package io.github.braayy;
 import io.github.braayy.column.RedbitColumn;
 import io.github.braayy.column.RedbitColumnInfo;
 import io.github.braayy.struct.RedbitStruct;
-import io.github.braayy.struct.RedbitVolatileStruct;
 import io.github.braayy.struct.RedbitStructInfo;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.*;
 
@@ -16,10 +15,10 @@ public class RedbitStructRegistry {
         this.structMap = new HashMap<>();
     }
 
-    private final Map<Class<? extends RedbitVolatileStruct>, RedbitStructInfo> structMap;
+    private final Map<Class<? extends RedbitStruct>, RedbitStructInfo> structMap;
 
-    public <T extends RedbitVolatileStruct> void registerStruct(String structName, Class<T> structClass) {
-        RedbitColumnInfo tableIdColumn = null;
+    public <T extends RedbitStruct> void registerStruct(String structName, Class<T> structClass) {
+        RedbitColumnInfo structIdColumn = null;
         List<RedbitColumnInfo> columns = new ArrayList<>();
 
         for (Field field : structClass.getDeclaredFields()) {
@@ -60,10 +59,10 @@ public class RedbitStructRegistry {
             RedbitColumnInfo columnInfo = new RedbitColumnInfo(fieldName, name, sqlCreation.toString(), defaultValue, idColumn, autoIncrement, nullable);
 
             if (idColumn) {
-                if (tableIdColumn != null)
+                if (structIdColumn != null)
                     throw new IllegalArgumentException("Two or more id columns detected in struct " + structName);
 
-                tableIdColumn = columnInfo;
+                structIdColumn = columnInfo;
 
                 continue;
             }
@@ -71,12 +70,12 @@ public class RedbitStructRegistry {
             columns.add(columnInfo);
         }
 
-        if (tableIdColumn == null)
+        if (structIdColumn == null)
             throw new IllegalArgumentException("No id column found in struct " + structName);
 
-        RedbitStructInfo tableInfo = new RedbitStructInfo(structName, tableIdColumn, columns);
+        RedbitStructInfo structInfo = new RedbitStructInfo(structName, structIdColumn, columns);
 
-        structMap.put(structClass, tableInfo);
+        structMap.put(structClass, structInfo);
     }
 
     @Nullable

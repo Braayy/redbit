@@ -2,36 +2,38 @@ package io.github.braayy.struct;
 
 import io.github.braayy.Redbit;
 import io.github.braayy.RedbitQuery;
-import io.github.braayy.column.RedbitColumnInfo;
+import io.github.braayy.fetch.RedbitDatabaseFetch;
+import io.github.braayy.fetch.RedbitFetch;
+import io.github.braayy.fetch.RedbitRedisFetch;
+import io.github.braayy.fetch.RedbitSingleRedisFetch;
 import io.github.braayy.synchronization.RedbitSynchronizationEntry.Operation;
 import io.github.braayy.utils.RedbitQueryBuilders;
+import io.github.braayy.utils.RedbitRedisScanner;
 import io.github.braayy.utils.RedbitUtils;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import redis.clients.jedis.JedisPooled;
 import redis.clients.jedis.params.ScanParams;
 
-import java.lang.reflect.Field;
-import java.sql.ResultSet;
 import java.util.*;
 import java.util.logging.Level;
 
 public class RedbitVolatileStruct extends RedbitStruct {
 
-    private RedbitFetcher currentFetcher;
-
     @Override
-    public boolean upsertAll() {
-        return upsertAll(true);
+    public boolean insert() {
+        return insert(true);
     }
 
-    public boolean upsertAll(boolean synchronize) {
+    public boolean insert(boolean synchronize) {
         return upsert(false, synchronize);
     }
 
-    public boolean upsertSome() {
-        return upsertSome(true);
+    public boolean update() {
+        return update(true);
     }
 
-    public boolean upsertSome(boolean synchronize) {
+    public boolean update(boolean synchronize) {
         return upsert(true, synchronize);
     }
 
@@ -44,7 +46,7 @@ public class RedbitVolatileStruct extends RedbitStruct {
             if (synchronize && Redbit.getSynchronizer().isShuttingDown())
                 throw new IllegalStateException("Synchronized operation ran while synchronizer is shutting down");
 
-            Map<String, String> valueMap = getStructValues(structInfo, ignoreNullValues);
+            Map<String, String> valueMap = RedbitUtils.getStructValues(structInfo, this, ignoreNullValues);
 
             String idValue = valueMap.remove(structInfo.getIdColumn().getName());
             if (RedbitUtils.isNullString(idValue))
@@ -120,11 +122,11 @@ public class RedbitVolatileStruct extends RedbitStruct {
             Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
 
             ScanParams scanParams = new ScanParams().match(structInfo.getName() + ":*").count(10);
-            this.currentFetcher = new RedbitFetcher(scanParams);
+            RedbitRedisScanner scanner = new RedbitRedisScanner(scanParams);
 
             String nextKey;
             List<String> keys = new ArrayList<>();
-            while ((nextKey = this.currentFetcher.next()) != null) {
+            while ((nextKey = scanner.next()) != null) {
                 keys.add(nextKey);
             }
 
@@ -142,161 +144,64 @@ public class RedbitVolatileStruct extends RedbitStruct {
     }
 
     @Override
-    public FetchResult fetchById() {
+    @NotNull
+    public RedbitFetch.Result fetchById() {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
-            if (structInfo == null)
-                throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
+            Objects.requireNonNull(structInfo, "Struct " + getClass().getSimpleName() + " was not registered!");
 
             String idValue = getIdFieldValue(structInfo);
             if (RedbitUtils.isNullString(idValue))
                 throw new IllegalArgumentException("Invalid id value for struct " + structInfo.getName());
 
-            JedisPooled jedis = Redbit.getJedis();
-            Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
-
             String key = String.format(Redbit.KEY_FORMAT, structInfo.getName(), idValue);
-            Map<String, String> valueMap = jedis.hgetAll(key);
+            try (RedbitSingleRedisFetch fetch = new RedbitSingleRedisFetch(this, key)) {
+                RedbitFetch.Result result = fetch.next();
 
-            if (!valueMap.isEmpty()) {
-                setFieldsValueFromRedis(structInfo, valueMap);
-
-                return FetchResult.FOUND;
-            }
-
-            String strQuery = RedbitQueryBuilders.buildSelectByIdQuery(structInfo, idValue);
-            try (RedbitQuery query = Redbit.sqlQuery(strQuery)) {
-                ResultSet set = query.executeQuery();
-
-                if (set.next()) {
-                    setFieldsValueFromResultSet(structInfo, set, false);
-                    upsert(false, true);
-
-                    return FetchResult.FOUND;
+                switch (result) {
+                    case FOUND:
+                    case ERROR:
+                        return result;
                 }
             }
 
-            return FetchResult.NOT_FOUND;
+            String strQuery = RedbitQueryBuilders.buildSelectByIdQuery(structInfo, idValue);
+            RedbitQuery query = Redbit.sqlQuery(strQuery);
+            try (RedbitDatabaseFetch fetch = new RedbitDatabaseFetch(this, query)) {
+                RedbitFetch.Result result = fetch.next();
+
+                if (result == RedbitFetch.Result.FOUND) {
+                    upsert(false, false);
+                }
+
+                return result;
+            }
         } catch (Exception exception) {
             Redbit.getLogger().log(Level.SEVERE, exception.getMessage(), exception);
 
-            return FetchResult.ERROR;
+            return RedbitFetch.Result.ERROR;
         }
     }
 
     @Override
-    public FetchResult fetchAll() {
-        return fetchAll(false);
-    }
-
-    // TODO: Create a fetchAll that fetches from database and caches in redis, very inefficient but useful if a struct is extremely common. It should only be used in the start of the plugin.
-    // Thought: make a method that caches the struct in redis if it fits the needs, so it fetches from database and if the user wants, caches in redis.
-    /*
-    So something like this would be possible:
-
-    try (User user = new User()) {
-        if (user.fetchAll(true) == FetchResult.FOUND) {
-            do {
-                user.cacheInRedis();
-            } while (user.nextInDatabase() == FetchResult.FOUND);
-        }
-    }
-     */
-    public FetchResult fetchAll(boolean fromDatabase) {
+    @Nullable
+    public RedbitRedisFetch fetchAll() {
         try {
             RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
-            if (structInfo == null)
-                throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
+            Objects.requireNonNull(structInfo, "Struct " + getClass().getSimpleName() + " was not registered!");
 
-            JedisPooled jedis = Redbit.getJedis();
-            Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
-
-            if (fromDatabase) {
-                return FetchResult.COMPLETE; // TODO: Implement this thing :sob:
-            } else {
-                ScanParams scanParams = new ScanParams().match(structInfo.getName() + ":*").count(10);
-                this.currentFetcher = new RedbitFetcher(scanParams);
-
-                return this.nextInRedis();
-            }
+            ScanParams scanParams = new ScanParams().match(structInfo.getName() + ":*").count(10);
+            return new RedbitRedisFetch(this, scanParams);
         } catch (Exception exception) {
             Redbit.getLogger().log(Level.SEVERE, exception.getMessage(), exception);
 
-            return FetchResult.ERROR;
+            return null;
         }
     }
 
-    public FetchResult nextInRedis() {
-        try {
-            RedbitStructInfo structInfo = Redbit.getStructRegistry().getStructInfo(getClass());
-            if (structInfo == null)
-                throw new IllegalStateException("Struct " + getClass().getSimpleName() + " was not registered!");
-
-            JedisPooled jedis = Redbit.getJedis();
-            Objects.requireNonNull(jedis, "Jedis was not initialized yet! Redbit#init(RedbitConfig) should do it");
-
-            if (this.currentFetcher == null)
-                throw new IllegalArgumentException("No current fetcher was set! RedbitVolatileStruct#fetchAll(String) should do it");
-
-            String nextKey = this.currentFetcher.next();
-
-            if (nextKey == null) {
-                this.currentFetcher.close();
-                this.currentFetcher = null;
-
-                return FetchResult.COMPLETE;
-            }
-
-            Map<String, String> valueMap = jedis.hgetAll(nextKey);
-
-            if (valueMap.isEmpty())
-                return FetchResult.NOT_FOUND;
-
-            setFieldsValueFromRedis(structInfo, valueMap);
-
-            return FetchResult.FOUND;
-        } catch (Exception exception) {
-            Redbit.getLogger().log(Level.SEVERE, exception.getMessage(), exception);
-
-            return FetchResult.ERROR;
-        }
-    }
-
-    @Override
-    public void close() {
-        if (this.currentFetcher != null) this.currentFetcher.close();
-        this.currentFetcher = null;
-    }
-
-    private void setFieldsValueFromRedis(RedbitStructInfo structInfo, Map<String, String> valueMap) throws NoSuchFieldException, IllegalAccessException {
-        for (RedbitColumnInfo columnInfo : structInfo.getColumns()) {
-            Field field = getClass().getDeclaredField(columnInfo.getFieldName());
-            field.setAccessible(true);
-
-            Class<?> type = field.getType();
-
-            String value = valueMap.get(columnInfo.getName());
-
-            if (Objects.equals(value, "") && columnInfo.isNullable()) {
-                field.set(this, null);
-                continue;
-            }
-
-            if (type.equals(Byte.class))
-                field.set(this, Byte.parseByte(value));
-            else if (type.equals(Character.class))
-                field.set(this, value.charAt(0));
-            else if (type.equals(Short.class))
-                field.set(this, Short.parseShort(value));
-            else if (type.equals(Integer.class))
-                field.set(this, Integer.parseInt(value));
-            else if (type.equals(Long.class))
-                field.set(this, Long.parseLong(value));
-            else if (type.equals(String.class))
-                field.set(this, value);
-            else
-                throw new IllegalArgumentException(type.getName() + " type is not supported by redbit");
-        }
+    @Nullable
+    public RedbitDatabaseFetch fetchAllFromDatabase() {
+        return ((RedbitDatabaseFetch) fetchWhere(null));
     }
 
 }

@@ -1,8 +1,8 @@
 package io.github.braayy.struct;
 
 import io.github.braayy.column.RedbitColumnInfo;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
